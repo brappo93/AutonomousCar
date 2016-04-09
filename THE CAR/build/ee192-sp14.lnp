@@ -1,0 +1,59 @@
+--cpu Cortex-M0+
+".\build\main.o"
+".\build\packet.o"
+".\build\protocol.o"
+".\build\telemetry.o"
+".\build\telemetry-arduino-hal.o"
+".\build\telemetry-data.o"
+".\build\telemetry-mbed-hal.o"
+".\build\pid.o"
+".\build\hal_cm0.o"
+".\build\hal_cm.o"
+".\build\rt_cmsis.o"
+".\build\rt_event.o"
+".\build\rt_list.o"
+".\build\rt_mailbox.o"
+".\build\rt_mutex.o"
+".\build\rt_membox.o"
+".\build\rt_robin.o"
+".\build\rt_system.o"
+".\build\rt_semaphore.o"
+".\build\rt_task.o"
+".\build\rtx_conf_cm.o"
+".\build\rt_time.o"
+".\build\mutex.o"
+".\build\rtostimer.o"
+".\build\semaphore.o"
+".\build\thread.o"
+".\build\svc_table.o"
+".\build\flush.o"
+".\build\getc.o"
+".\build\init.o"
+".\build\isr_rx.o"
+".\build\isr_tx.o"
+".\build\putc.o"
+".\build\resize.o"
+".\build\modserial_kl25z.o"
+".\build\modserial_lpc1768.o"
+".\build\modserial_lpc11u24.o"
+".\build\modserial_irq_info.o"
+".\build\modserial.o"
+--strict --scatter "mbed/TARGET_KL25Z/TOOLCHAIN_ARM_STD/MKL25Z4.sct"
+
+
+            
+              mbed/TARGET_KL25Z/TOOLCHAIN_ARM_STD/sys.o
+            
+              mbed/TARGET_KL25Z/TOOLCHAIN_ARM_STD/cmsis_nvic.o
+            
+              mbed/TARGET_KL25Z/TOOLCHAIN_ARM_STD/system_MKL25Z4.o
+            
+              mbed/TARGET_KL25Z/TOOLCHAIN_ARM_STD/startup_MKL25Z4.o
+            
+              mbed/TARGET_KL25Z/TOOLCHAIN_ARM_STD/retarget.o
+            
+              mbed/TARGET_KL25Z/TOOLCHAIN_ARM_STD/mbed.ar
+            
+--summary_stderr --info summarysizes --map --xref --callgraph --symbols
+--info sizes --info totals --info unused --info veneers
+--list ".\build\ee192-sp14.map" -o .\build\ee192-sp14.axf
