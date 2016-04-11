@@ -5,7 +5,7 @@
 #include "server-cpp\telemetry.h"
 #include "Timer.h"
 #include "PID/PID.h"
-
+//#include "FastAnalogIn/FastAnalogIn.h"
 
 /* FRDM */
 DigitalOut led_green(LED_GREEN);
@@ -39,8 +39,8 @@ PID s_pid(2.0, 0.0, 0.0, 0.008);
 
 Timer s_timer;
 
-/* CAMERA VARIABLES * /
-
+/* CAMERA VARIABLES */
+/* //Interrupt Camera
 AnalogIn cam(PTB0);        // Cam AOUT
 DigitalOut cam_si(PTC8);   // Cam SI
 PwmOut cam_clk(PTA5);      // Cam CLK
@@ -56,13 +56,12 @@ unsigned short line   = 64;           // for storing the line location
 AnalogIn cam(PTB0);						// Cam AOUT
 DigitalOut cam_si(PTC8);			// Cam SI
 DigitalOut cam_clk(PTA5);			// Cam CLK
-int cam_clk_count, clk_qt;		// Clock cycle counter and offset
+int clk_qt;		// Clock cycle counter and offset
 uint16_t cam_data[128]; 			// for storing raw camera read data
 uint16_t center = 64;   			// for storing the line location
 uint16_t line   = 64;   			// for storing the line location
-int cam_clk_half_period;			// Period of hald a cycle
+int cam_clk_half_period;			// Period of half a cycle
 uint16_t max_bright = 0;
-//unsigned short numFrames = 0; // Store the number of frames
 
 /* TELEMETRY */
 MODSERIAL serial(USBTX, USBRX);
@@ -77,139 +76,43 @@ telemetry::NumericArray < uint16_t, 128 > tele_linescan(telemetry_obj, "linescan
 telemetry::Numeric < float > tele_det_speed(telemetry_obj, "speed", "Observed Speed", "m/s", 0);
 telemetry::Numeric < float > tele_out_pwm(telemetry_obj, "pwm", "Output PWM", "units", 0);
 
-
 /* Prototypes */
-//void print_frame(void);
+//Camera
+void camera_setup(void);
+void dummy_read(void);
+void cam_data_thread(void const *args);
 //void cam_isr(void);
 unsigned short find_line(unsigned short*);
-void cam_data_thread(void const *args);
-void camera_setup(void);
+//Motor
 void drive_setup(void);
-void steer_setup(void);
 void speed_isr(void);
 float estimate_speed(void);
 void set_speed(float);
+//Steering
+void steer_setup(void);
 void set_steer(int);
-void flash_led(void);
+//IO
+void flash_led(DigitalOut led);
 
-
-/* Print a frame of camera data, deprecated b/c of telemetery */
-/*void print_frame(){
-	int i, j;
-	for(i=0; i<16; i++){
-		cam_frame[i] = 0;
-	} //change to memset()
-	for(i=0; i<16; i++){
-		for(j=i*8; j<(i+1)*8; j++){
-			cam_frame[i] += cam_data[j]/8;
-		}
-		//printfNB(" %d",cam_frame[i]/ 6554);
-	}
-	//printfNB(" c: %d\n", center);
-}*/
-
-/* Camera Clock Interrupt Routine * /
-void cam_isr() {
-	if (cam_clk_count == 0) {
-		cam_si.write(1); // trigger SI to start
-		cam_clk_count++;
-	} else if ((cam_clk_count > 0)&&(cam_clk_count < 129+clk_qt)) {
-		if (cam_clk_count == 1) {
-			cam_si.write(0); // set SI low
-	  }
-		if (cam_clk_count < 128) {
-			cam_data[cam_clk_count-1] = cam.read_u16(); // read in cam pixel
-			
-		} else if (cam_clk_count == 128) {
-			//memcpy(cam_frame, cam_data, sizeof(int)*128);			// copy frame when done
-			center = find_line(cam_data); // find line
-			line = center;
-			if ((center-prev_center)*(center-prev_center) > 500){
-				//then it lost the line
-				led_red = 0.0;
-				center = prev_center;
-			}else{
-				led_red = 1.0;
-			}
-			prev_center = center;
-			set_steer(center);
-		}
-		cam_clk_count++;
-	} else {
-		cam_clk_count = 0; // reset
-	}
-}*/
-
-
-/* Line Finding Algorithm */
-unsigned short find_line(unsigned short* data) {
-	//Operates on the cam_data(cam_frame) integer array
-	//Find the center index where the line is on the array 
-	//Given we know the length, index 64 would correspond 
-	//to the line being right in front of us
-	//int l_edge = -1, r_edge = -1, 
-	int max_val = -1, max_index = -1;
-	max_bright = 0;
-	int i;
-	for (i = 0; i<prev_center; i++) {
-		if (data[i] >= max_val) {
-			max_val = data[i];
-			max_index = i;
-		}
-	}for (i = 127; i>=prev_center; i--) {
-		if (data[i] >= max_val) {
-			max_val = data[i];
-			max_index = i;
-		}
-	}
-	return max_index;
+/* Camera Methods */
+/* Camera Setup Routine */
+void camera_setup() {
+	/* //For Interupt Camera
+	cam_clk_count = 0;
+	clk_qt = 80;
+	cam_si.write(0);
+	cam_clk.period_us(100);
+	cam_clk.write(0.5);
+	memset(cam_data, 0, 128*sizeof(unsigned short));
+	clk_in.fall(&cam_isr);
+	*/
+	//For Bit-Bang Camera
+	clk_qt = 1; //ms
+	cam_si.write(0);
+	cam_clk.write(0);
+	cam_clk_half_period = 1; // us
+	memset(cam_data, 0, 128*sizeof(unsigned short));
 }
-/* New line finding algorithm * /
-
-uint16_t max(uint16_t n1, uint16_t n2){
-	return n1>n2? n1 : n2;
-}
-
-uint16_t abs(uint16_t n){
-	return n>0? n: -n;
-}
-
-unsigned short find_line_new(unsigned short* data) {
-	uint16_t step = 0;
-	uint16_t thresh = 100;
-	//uint16_t line_width = 4; //found that line is usually about 6 pixels thick
-	int diff;
-	
-	uint16_t ctr_diff = 65535;
-	
-	uint16_t left_edge, right_edge, temp_ctr_diff, temp_ctr;
-	
-	short poss_center = prev_center;
-
-	max_bright = data[0];
-	
-	
-	for (uint16_t i = 1; i<128; i++){
-		max_bright = max(max_bright, data[i]);
-		diff = data[i] - data[i-1];
-		if ( diff > step ){ //found possible left edge
-			left_edge = i-1;
-			step = diff;
-		}
-		if (diff > -(step + thresh) && diff < -(step - thresh)){ //found right edge
-			right_edge = i;
-			temp_ctr = (right_edge + left_edge) / 2;
-			temp_ctr_diff = abs(prev_center - temp_ctr);
-			if ( temp_ctr_diff < ctr_diff ){
-				poss_center = temp_ctr;
-				ctr_diff = temp_ctr_diff;
-			}
-			step = 0;
-		}
-	}
-	return poss_center;
-}
-*/
 
 /* Dummy read for bit-bang camera */
 void dummy_read(){
@@ -231,17 +134,10 @@ void dummy_read(){
 	//wait_us(100);
 }
 
-
-
-/* Camera Data Thread */
-void cam_data_thread(void const *args){
+/* Camera Data Aqcuisition Thread */
+/* void cam_data_thread(void const *args){ // Old way
 	
-	//telemetry_serial.printf("HEY\r\n");
-	
-	
-	//numFrames=0;
 	while(1){
-		
 		if (cam_clk_count == 0) {
 			dummy_read();
 			Thread::wait(clk_qt);
@@ -283,28 +179,98 @@ void cam_data_thread(void const *args){
 			cam_clk_count = 0; // reset
 		}
 	}
+}*/
+void cam_data_thread(void const *args){ // New way
+	int i;
+	while(1){
+		dummy_read();
+		Thread::wait(clk_qt);
+		cam_si.write(1); // trigger SI to start
+		cam_clk.write(1);
+		wait_us(cam_clk_half_period);
+		cam_si.write(0); // set SI low
+		cam_clk.write(0);
+		wait_us(cam_clk_half_period);
+		
+		for(i=0; i<128; i++){
+			cam_data[i] = cam.read_u16(); // read in cam pixel
+			wait_us(cam_clk_half_period);
+			cam_clk.write(1);
+			wait_us(cam_clk_half_period);
+			cam_clk.write(0);
+		}
+		center = find_line(cam_data); // find line
+		line = center;
+		if ((prev_center>118 || prev_center<10) && (center-prev_center)*(center-prev_center) > 500){
+			//then it lost the line
+			led_blue= 0.0;
+			led_red = 0.0;
+			center = prev_center;
+		}else{
+			led_blue= 1.0;
+			led_red = 1.0;
+		}
+		prev_center = center;
+		set_steer(center);
+		Thread::wait(2);
+	}
+}
+/* Camera Clock Interrupt Routine */
+/*void cam_isr() {
+	if (cam_clk_count == 0) {
+		cam_si.write(1); // trigger SI to start
+		cam_clk_count++;
+	} else if ((cam_clk_count > 0)&&(cam_clk_count < 129+clk_qt)) {
+		if (cam_clk_count == 1) {
+			cam_si.write(0); // set SI low
+	  }
+		if (cam_clk_count < 128) {
+			cam_data[cam_clk_count-1] = cam.read_u16(); // read in cam pixel
+			
+		} else if (cam_clk_count == 128) {
+			//memcpy(cam_frame, cam_data, sizeof(int)*128);			// copy frame when done
+			center = find_line(cam_data); // find line
+			line = center;
+			if ((center-prev_center)*(center-prev_center) > 500){
+				//then it lost the line
+				led_red = 0.0;
+				center = prev_center;
+			}else{
+				led_red = 1.0;
+			}
+			prev_center = center;
+			set_steer(center);
+		}
+		cam_clk_count++;
+	} else {
+		cam_clk_count = 0; // reset
+	}
+}*/
+/* Line Finding Algorithm */
+unsigned short find_line(unsigned short* data) {
+	//Operates on the cam_data(cam_frame) integer array
+	//Find the center index where the line is on the array 
+	//Given we know the length, index 64 would correspond 
+	//to the line being right in front of us
+	//int l_edge = -1, r_edge = -1, 
+	int max_val = -1, max_index = -1;
+	max_bright = 0;
+	int i;
+	for (i = 0; i<prev_center; i++) {
+		if (data[i] >= max_val) {
+			max_val = data[i];
+			max_index = i;
+		}
+	}for (i = 127; i>=prev_center; i--) {
+		if (data[i] >= max_val) {
+			max_val = data[i];
+			max_index = i;
+		}
+	}
+	return max_index;
 }
 
-/* Camera Clock Setup Routine */
-void camera_setup() {
-	/*
-	cam_clk_count = 0;
-	clk_qt = 80;
-	cam_si.write(0);
-	cam_clk.period_us(100);
-	cam_clk.write(0.5);
-	memset(cam_data, 0, 128*sizeof(unsigned short));
-	clk_in.fall(&cam_isr);
-	*/
-	cam_clk_count = 0;
-	clk_qt = 2;
-	cam_si.write(0);
-	cam_clk.write(0);
-	cam_clk_half_period = 1; // us
-	memset(cam_data, 0, 128*sizeof(unsigned short));
-}
-
-
+/* Motor Methods */
 /* Motor Driver Setup Routine */
 void drive_setup() {
 	motor_br.write(1);      // Set HIGH to disable braking
@@ -320,25 +286,6 @@ void drive_setup() {
 	//motor_speed.rise(&speed_isr);
 	motor_speed.fall(&speed_isr);
 }
-
-/* Steering Servo Setup Routine */
-void steer_setup() {
-	s_pid.setInputLimits(-127, 0);
-	s_pid.setOutputLimits(1196, 1704);
-	s_pid.setBias(1450);
-	s_pid.setMode(1);
-	s_pid.setSetPoint(-64);
-	//int low = 1196;
-	//int high = 1704;
-	//1450 is middle
-	//int step_size = 4;
-	//for (int i=0; i<128; i++){
-	//	steer_angles[i] = low + step_size * i;
-	//}
-	steer.period_ms(20);
-	steer.pulsewidth_us(1450); //1200 to 1700 limits left to right; 1450 center0
-}
-
 /* Motor Speed Interrupt Routine */
 void speed_isr() {
 	//t.stop();
@@ -408,6 +355,24 @@ void set_speed(float spd) {
 	motor_en.write(1.0-spd); // SPD should be between 0.0 - 1.0
 }
 
+/* Steering Methods */
+/* Steering Servo Setup Routine */
+void steer_setup() {
+	s_pid.setInputLimits(-127, 0);
+	s_pid.setOutputLimits(1196, 1704);
+	s_pid.setBias(1450);
+	s_pid.setMode(1);
+	s_pid.setSetPoint(-64);
+	//int low = 1196;
+	//int high = 1704;
+	//1450 is middle
+	//int step_size = 4;
+	//for (int i=0; i<128; i++){
+	//	steer_angles[i] = low + step_size * i;
+	//}
+	steer.period_ms(20);
+	steer.pulsewidth_us(1450); //1200 to 1700 limits left to right; 1450 center0
+}
 /* Set Steering Angle */
 void set_steer(int pos) {
 	//printfNB("%d\r\n",steer_angles[pos]);
@@ -425,12 +390,12 @@ void set_steer(int pos) {
 	}
 	//Thread::wait(100);
 }
-
+/* IO */
 /* Flash Green LED for diagnostics */
-void flash_led() {
-	led_green.write(0); // Note that the internal LED is active LOW
+void flash_led(DigitalOut led) {
+	led.write(0); // Note that the internal LED is active LOW
 	wait(0.25);
-	led_green.write(1);
+	led.write(1);
 	wait(0.25);
 }
 
@@ -438,15 +403,15 @@ void flash_led() {
 int main() {
 	led_blue = 1.0;
 	led_red = 1.0;
-	flash_led();
+	flash_led(led_green);
 	
 	serial.baud(115200);
   
 	//tele_line.set_limits(0,127);
 	
 	wait(5);
-	flash_led();
-	flash_led();
+	flash_led(led_green);
+	flash_led(led_green);
 	telemetry_obj.transmit_header();
 	tele_timer.start();
 	
