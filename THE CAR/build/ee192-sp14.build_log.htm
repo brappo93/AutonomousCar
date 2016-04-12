@@ -21,8 +21,8 @@ Dialog DLL:      DARMCM1.DLL V1.11.00.0
 Dialog DLL:      TARMCM1.DLL V1.08.00.0
  
 <h2>Project:</h2>
-C:\Users\ee192-ad\Desktop\Improved Linescan\ee192-sp14.uvprojx
-Project File Date:  04/07/2016
+C:\Users\TEMP\Desktop\team10\THE CAR\ee192-sp14.uvprojx
+Project File Date:  04/11/2016
 
 <h2>Output:</h2>
 Build target 'mbed FRDM-KL25Z'
@@ -59,11 +59,11 @@ server-cpp\telemetry.h(304): warning:  #1300-D: write_payload inherits implicit 
     void write_payload(TransmitPacket& packet) {
 server-cpp\telemetry.h(306): warning:  #1300-D: set_from_packet inherits implicit virtual
     void set_from_packet(ReceivePacketBuffer& packet) {
-main.cpp(489): warning:  #111-D: statement is unreachable
+main.cpp(463): warning:  #111-D: statement is unreachable
         Thread::wait(osWaitForever);
 main.cpp: 17 warnings, 0 errors
 linking...
-Program Size: Code=38768 RO-data=2416 RW-data=528 ZI-data=6028  
+Program Size: Code=39648 RO-data=2456 RW-data=552 ZI-data=6124  
 After Build - User command #1: fromelf --bin -o build\ee192-sp14_KL25Z.bin build\ee192-sp14.axf
 ".\build\ee192-sp14.axf" - 0 Error(s), 17 Warning(s).
 
@@ -76,56 +76,15 @@ Package Vendor: ARM
    * Component: CORE Version: 4.3.0
 
 <h2>Collection of Component include folders:</h2>
-  C:\Users\ee192-ad\Desktop\Improved Linescan\RTE
+  C:\Users\TEMP\Desktop\team10\THE CAR\RTE
   C:\Keil_v5\ARM\PACK\ARM\CMSIS\4.5.0\CMSIS\Include
   C:\Keil_v5\ARM\PACK\Keil\Kinetis_KLxx_DFP\1.4.0\Device\Include
 
 <h2>Collection of Component Files used:</h2>
 
    * Component: ARM::CMSIS:CORE:4.3.0
+"MBed_Flash.bat" build\ee192-sp14_KL25Z.bin  D:\
 </pre>
 </body>
 </html>
-92-sp14_KL25Z.bin  D:\
-iles used:</h2>
-
-   * Component: ARM::CMSIS:CORE:4.3.0
-"MBed_Flash.bat" build\ee192-sp14_KL25Z.bin  D:\
-rning:  #1300-D: write_uint8 inherits implicit virtual
-    void write_uint8(uint8_t data);
-server-cpp\packet.h(81): warning:  #1300-D: write_uint16 inherits implicit virtual
-    void write_uint16(uint16_t data);
-server-cpp\packet.h(82): warning:  #1300-D: write_uint32 inherits implicit virtual
-    void write_uint32(uint32_t data);
-server-cpp\packet.h(83): warning:  #1300-D: write_float inherits implicit virtual
-    void write_float(float data);
-server-cpp\telemetry.h(209): warning:  #1300-D: get_data_type inherits implicit virtual
-    uint8_t get_data_type() { return protocol::DATATYPE_NUMERIC; }
-server-cpp\telemetry.h(211): warning:  #1300-D: get_header_kvrs_length inherits implicit virtual
-    size_t get_header_kvrs_length() {
-server-cpp\telemetry.h(218): warning:  #1300-D: write_header_kvrs inherits implicit virtual
-    void write_header_kvrs(TransmitPacket& packet) {
-server-cpp\telemetry.h(229): warning:  #1300-D: get_payload_length inherits implicit virtual
-    size_t get_payload_length() { return sizeof(value); }
-server-cpp\telemetry.h(230): warning:  #1300-D: write_payload inherits implicit virtual
-    void write_payload(TransmitPacket& packet) { serialize_data(value, packet); }
-server-cpp\telemetry.h(231): warning:  #1300-D: set_from_packet inherits implicit virtual
-    void set_from_packet(ReceivePacketBuffer& packet) {
-server-cpp\telemetry.h(280): warning:  #1300-D: get_data_type inherits implicit virtual
-    uint8_t get_data_type() { return protocol::DATATYPE_NUMERIC_ARRAY; }
-server-cpp\telemetry.h(282): warning:  #1300-D: get_header_kvrs_length inherits implicit virtual
-    size_t get_header_kvrs_length() {
-server-cpp\telemetry.h(290): warning:  #1300-D: write_header_kvrs inherits implicit virtual
-    void write_header_kvrs(TransmitPacket& packet) {
-server-cpp\telemetry.h(303): warning:  #1300-D: get_payload_length inherits implicit virtual
-    size_t get_payload_length() { return sizeof(value); }
-server-cpp\telemetry.h(304): warning:  #1300-D: write_payload inherits implicit virtual
-    void write_payload(TransmitPacket& packet) {
-server-cpp\telemetry.h(306): warning:  #1300-D: set_from_packet inherits implicit virtual
-    void set_from_packet(ReceivePacketBuffer& packet) {
-main.cpp(331): warning:  #177-D: variable "low" was declared but never referenced
-        int low = 1196;
-main.cpp(486): warning:  #111-D: statement is unreachable
-        Thread::wait(osWaitForever);
-main.cpp: 18 warnings, 0 errors
-"main.cpp" - 0 Error(s), 18 Warning(s).
+ed.
