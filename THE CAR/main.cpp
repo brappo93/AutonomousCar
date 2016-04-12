@@ -20,10 +20,11 @@ InterruptIn motor_speed(PTD5); // FG1 pin
 
 /* VELOCITY CONTROL */
 Timer velocity_timer;				//interrupt timer
-float des_spd;	//desired speed
-float curr_spd[3] = {};
+float max_speed, min_speed, des_speed;	//max, min, desired speed
+float curr_spd[3] = {}; //current speed
 long numC = 0;	//number of interrupts
 double tot_err = 0; //total error
+float slow_const = 0.005;
 //double Kp = 1.0;
 //double Ki = 5.0;
 //PID v_pid(Kp, 0.0, 0.0, 0.1);
@@ -35,8 +36,10 @@ PwmOut steer(PTA12);           // steering servo PWM
 /* STEERING VARIABLES */
 //unsigned short steer_angles[128]; //map of valid steering angles
 unsigned short prev_center = 64;
-PID s_pid(2.0, 0.0, 0.0, 0.008);
-
+float s_Kp = 1.5;
+float s_Ki = 0.0;
+float s_Kd = 0.0;
+PID s_pid(s_Kp, (s_Ki==0.0)? 0.0 : s_Kp/s_Ki , s_Kd/s_Kp , 0.008);
 Timer s_timer;
 
 /* CAMERA VARIABLES */
@@ -58,10 +61,10 @@ DigitalOut cam_si(PTC8);			// Cam SI
 DigitalOut cam_clk(PTA5);			// Cam CLK
 int clk_qt;		// Clock cycle counter and offset
 uint16_t cam_data[128]; 			// for storing raw camera read data
-uint16_t center = 64;   			// for storing the line location
-uint16_t line   = 64;   			// for storing the line location
+uint16_t center = 64;   			// detected line center
+uint16_t line   = 64;   			// actual line location
 int cam_clk_half_period;			// Period of half a cycle
-uint16_t max_bright = 0;
+uint16_t tot_bright;
 
 /* TELEMETRY */
 MODSERIAL serial(USBTX, USBRX);
@@ -71,8 +74,9 @@ telemetry::MbedHal telemetry_hal(telemetry_serial);
 telemetry::Telemetry telemetry_obj(telemetry_hal);
 telemetry::Numeric < uint32_t > tele_time_ms(telemetry_obj, "time", "Time", "ms", 0);
 telemetry::NumericArray < uint16_t, 128 > tele_linescan(telemetry_obj, "linescan", "Linescan", "ADC", 0);
-//telemetry::Numeric < uint16_t > tele_line(telemetry_obj, "line", "Line Estimate", "Pixels", 0);
-//telemetry::Numeric < uint16_t > tele_brightness(telemetry_obj, "brightness", "Total Brightness", "Units", 0);
+telemetry::Numeric < uint16_t > tele_line(telemetry_obj, "line", "Actual Line Location", "Pixels", 0);
+telemetry::Numeric < uint16_t > tele_center(telemetry_obj, "center", "Detected Line Center", "Pixels", 0);
+telemetry::Numeric < uint16_t > tele_brightness(telemetry_obj, "brightness", "Average Brightness", "Units", 0);
 telemetry::Numeric < float > tele_det_speed(telemetry_obj, "speed", "Observed Speed", "m/s", 0);
 telemetry::Numeric < float > tele_out_pwm(telemetry_obj, "pwm", "Output PWM", "units", 0);
 
@@ -94,6 +98,13 @@ void set_steer(int);
 //IO
 void flash_led(DigitalOut led);
 
+/* Helpers */
+float min(float n1, float n2){
+	return n1<n2? n1 : n2;
+}
+float max(float n1, float n2){
+	return n1>n2? n1 : n2;
+}
 /* Camera Methods */
 /* Camera Setup Routine */
 void camera_setup() {
@@ -191,9 +202,10 @@ void cam_data_thread(void const *args){ // New way
 		cam_si.write(0); // set SI low
 		cam_clk.write(0);
 		wait_us(cam_clk_half_period);
-		
+		tot_bright = 0;
 		for(i=0; i<128; i++){
 			cam_data[i] = cam.read_u16(); // read in cam pixel
+			tot_bright += cam_data[i];
 			wait_us(cam_clk_half_period);
 			cam_clk.write(1);
 			wait_us(cam_clk_half_period);
@@ -248,13 +260,7 @@ void cam_data_thread(void const *args){ // New way
 }*/
 /* Line Finding Algorithm */
 unsigned short find_line(unsigned short* data) {
-	//Operates on the cam_data(cam_frame) integer array
-	//Find the center index where the line is on the array 
-	//Given we know the length, index 64 would correspond 
-	//to the line being right in front of us
-	//int l_edge = -1, r_edge = -1, 
 	int max_val = -1, max_index = -1;
-	max_bright = 0;
 	int i;
 	for (i = 0; i<prev_center; i++) {
 		if (data[i] >= max_val) {
@@ -282,7 +288,7 @@ void drive_setup() {
 	//v_pid.setMode(1); //1 = AUTO mode
 	//v_pid.setSetPoint(0);
 	//v_pid.setBias(0.25);
-	des_spd = 0.0;
+	des_speed = 0.0;
 	//motor_speed.rise(&speed_isr);
 	motor_speed.fall(&speed_isr);
 }
@@ -327,7 +333,7 @@ float estimate_speed(){
 		tot_err = 0;
 	}
 	
-	float error = des_spd - detected_speed;
+	float error = des_speed - detected_speed;
 	
 
 	tot_err+= error;
@@ -370,12 +376,12 @@ void steer_setup() {
 	//for (int i=0; i<128; i++){
 	//	steer_angles[i] = low + step_size * i;
 	//}
+	slow_const = 0.008;
 	steer.period_ms(20);
 	steer.pulsewidth_us(1450); //1200 to 1700 limits left to right; 1450 center0
 }
 /* Set Steering Angle */
 void set_steer(int pos) {
-	//printfNB("%d\r\n",steer_angles[pos]);
 	s_timer.stop();
 	float s_time = s_timer.read();
 	s_timer.reset();
@@ -387,6 +393,7 @@ void set_steer(int pos) {
 		//telemetry_serial.printf("steer: %f\n", new_steer);
 		new_steer = new_steer>1704? 1704 : new_steer<1196? 1196 : new_steer;
 		steer.pulsewidth_us(new_steer);
+		des_speed = max(min_speed, max_speed - abs(64-pos)*slow_const);
 	}
 	//Thread::wait(100);
 }
@@ -425,8 +432,9 @@ int main() {
 	cam_thread.set_priority(osPriorityAboveNormal);
 
 	
-	
-	des_spd = 0.125; //0.125 ~= 1 m/s, 0.7 is VERY FAST OMG
+	min_speed = 0.125;
+	max_speed = 0.5;
+	des_speed = max_speed; //0.125 ~= 1 m/s, 0.7 is VERY FAST OMG
 	float curr_speed = 0;
 	//float out_pwm = 0;
 	
@@ -435,9 +443,10 @@ int main() {
 		for (uint16_t i=0; i<128; i++){
 			tele_linescan[i] = cam_data[i];
 		}
-		//tele_brightness = max_bright;
+		tele_brightness = tot_bright/128;
 		tele_time_ms = tele_timer.read_ms();
-		//tele_line = line;
+		tele_line = line;
+		tele_center=center;
 		//v_pid.setSetPoint(des_spd);
 		curr_speed = estimate_speed();
 		tele_det_speed = curr_speed;
